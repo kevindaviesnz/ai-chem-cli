@@ -1,0 +1,11 @@
+{
+  "t-buli": "⚠️ DANGER: Pyrophoric. Ignites spontaneously in air. Requires Schlenk techniques.",
+  "sodium hydride": "⚠️ DANGER: Water-reactive. Releases flammable hydrogen gas. Potential for fire/explosion.",
+  "osmium tetroxide": "⚠️ DANGER: Highly volatile and acutely toxic to eyes and lungs. Use in dedicated hood.",
+  "thionyl chloride": "⚠️ DANGER: Corrosive and toxic. Reacts violently with water to release HCl and SO2 gas.",
+  "benzene": "⚠️ WARNING: Known human carcinogen. Avoid inhalation and skin contact.",
+  "sodium cyanide": "⚠️ DANGER: Acutely toxic. Inhibits cellular respiration. Keep away from acids.",
+  "hf": "⚠️ DANGER: Hydrofluoric acid. Causes deep, painless tissue destruction and systemic calcium depletion.",
+  "n-butyllithium": "⚠️ DANGER: Pyrophoric and highly corrosive base.",
+  "diazomethane": "⚠️ DANGER: Highly explosive and acutely toxic gas. Requires specialized glassware (Ace)."
+}

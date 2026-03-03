@@ -1,0 +1,84 @@
+.\" Manpage for chem-cli.
+.\" Contact kevin@example.com to correct errors or typos.
+.TH man 1 "26 Feb 2026" "1.2.5" "chem-cli man page"
+.SH NAME
+chem-cli \- AI-powered retrosynthesis planning tool
+.SH SYNOPSIS
+.B chem-cli
+[\-p \fItarget\fR] [\-d \fIdepth\fR] [\-m \fImodel\fR] [\-o \fIfilename\fR] [\-\-pdf] [\-\-nocache] [\-v | \-\-verbose] [\-\-silent]
+.SH DESCRIPTION
+.B chem-cli
+is a command-line interface that uses Large Language Models (LLMs) to perform retrosynthetic analysis. It generates branching reaction trees for organic molecules, breaking them down into commercially available precursors.
+
+By default, the tool outputs a summary to the terminal and saves a detailed report (HTML or PDF) alongside a visual reaction map (PNG) in the current working directory.
+
+.SH OPTIONS
+.TP
+.BR \-p ", " \-\-pathway " \fItarget\fR"
+The target molecule name or SMILES string (e.g., "Aspirin", "CC(=O)Oc1ccccc1C(=O)O"). This is the root of the retrosynthetic tree.
+.TP
+.BR \-d ", " \-\-depth " \fIn\fR"
+The recursion depth for the synthesis tree.
+.br
+\fB1\fR: Immediate precursors (one step back).
+.br
+\fB2\fR: Precursors of precursors (two steps back).
+.br
+Default is \fB1\fR. Note that depth > 2 can significantly increase API usage and runtime.
+.TP
+.BR \-m ", " \-\-model " \fIname\fR"
+The specific AI model ID to use.
+.br
+Default: \fBgemini/gemini-2.0-flash\fR.
+.br
+Example: \fBgemini/gemini-1.5-pro\fR.
+.TP
+.BR \-o ", " \-\-output " \fIfilename\fR"
+Custom filename for the report. If the extension is .pdf, a PDF is generated; otherwise, HTML is used.
+.TP
+.BR \-\-pdf
+Force the report to be generated as a PDF file instead of HTML.
+.TP
+.BR \-\-nocache
+Disable the caching mechanism. This forces the tool to make a fresh API call to the LLM provider, even if a result for this query already exists.
+.TP
+.BR \-v ", " \-\-verbose
+Enable verbose debug mode. This prints the raw API URL, the cache key, and the full raw text response from the AI model to the terminal. Useful for debugging or inspecting the exact chemical narrative returned by the LLM.
+.TP
+.BR \-\-silent
+Suppress all standard terminal output. No summaries or progress bars will be shown. Errors will still be printed to stderr. This is ideal for using chem-cli in automated scripts.
+.TP
+.BR \-\-version
+Show the version number and exit.
+
+.SH ENVIRONMENT VARIABLES
+.TP
+.B GEMINI_API_KEY
+Required. Your Google Gemini API key.
+
+.SH FILES
+.TP
+.B ~/.chem-cli/cache.json
+Stores the hashed results of previous API calls to prevent redundant network requests and save quota.
+
+.SH EXAMPLES
+.B Basic Usage:
+.br
+chem-cli --pathway "Ibuprofen"
+
+.B Deep Search with PDF Output:
+.br
+chem-cli -p "Paracetamol" -d 2 --pdf --output report.pdf
+
+.B Debugging Network Calls:
+.br
+chem-cli -p "Aspirin" --verbose --nocache
+
+.B Silent Mode (Scripting):
+.br
+chem-cli -p "Caffeine" --silent
+
+.SH BUGS
+Please report bugs to the repository maintainer.
+.SH AUTHOR
+Kevin Davies (kevindaviesnz)
