@@ -1,25 +1,29 @@
 # Environments
-chem_cli_app/.venv/
-env/
+.venv/
 venv/
+env/
 
-# Python cache
-chem_cli_app/__pycache__/
-chem_cli_app/*.pyc
-chem_cli_app/*.pyo
-chem_cli_app/*.pyd
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 
-# OS specific
-chem_cli_app/.DS_Store
+# Mac OS specific
+.DS_Store
 
-# Build artifacts
-chem_cli_app/build/
-chem_cli_app/dist/
-chem_cli_app/*.spec
+# PyInstaller / Build Artifacts
+build/
+dist/
+*.spec
 
-# Application specific
-chem_cli_app/cache.json
-chem_cli_app/*.html
-chem_cli_app/*.pdf
-chem_cli_app/.env
+# Application Outputs & Caches
+cache.json
+*.html
+*.pdf
 
+# Secrets (API Keys)
+.env
+
+# Release Archives
+*.zip

@@ -1,4 +1,4 @@
-# AI Chem-CLI (v1.8.4)
+# AI Chem-CLI (v1.8.5)
 
 An agentic, multi-LLM command-line interface for retrosynthetic chemical planning. 
 
@@ -28,7 +28,7 @@ Ensure you have Python 3.x installed. The application uses a `Makefile` to clean
 **Retrosynthetic Planning:**
 Run a retrosynthetic breakdown for a target molecule. You can save the output as an HTML or PDF report.
 
-`chem-cli -p "procaine" -d 1 --nocache -o procaine.pdf`
+`chem-cli -p "procaine" -d 1 --nocache -o procaine.html`
 
 **Forward Reaction Simulation:**
 Simulate the major product of specific reactants.

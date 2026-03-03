@@ -1,6 +1,6 @@
 # Variables
 BINARY_NAME=chem-cli
-VERSION=1.4.2
+VERSION=1.8.5
 CACHE_PATH=~/.chem-cli/cache.json
 PUBCHEM_URL=https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/water/cids/JSON
 
@@ -13,7 +13,7 @@ check-api:
 		(echo "\033[91m[!] Error: PubChem API is unreachable.\033[0m" && exit 1)
 	@echo "\033[92m[✓] PubChem API is Online.\033[0m"
 
-# 2. Build - Restored the missing requests, certifi, and numpy flags!
+# 2. Build - Added missing rdkit and click flags
 build:
 	@echo "Building standalone binary for version $(VERSION)..."
 	pyinstaller --onefile --name $(BINARY_NAME) \
@@ -26,6 +26,8 @@ build:
 		--collect-all markdown \
 		--collect-all requests \
 		--collect-all certifi \
+		--collect-all rdkit \
+		--collect-all click \
 		--hidden-import tiktoken_ext.openai_public \
 		--hidden-import tiktoken_ext \
 		--copy-metadata tiktoken \
@@ -44,12 +46,11 @@ install: check-api build
 # 4. Benchmark
 test-complex: check-api
 	@echo "Running Stress Tests..."
-	@echo "--- Target: Halichondrin B (CID-First Strategy) ---"
-	$(BINARY_NAME) -p "Halichondrin B" -m "gemini/gemini-2.5-flash" --nocache
+	./test_chemoselectivity.sh
 
 clear-cache:
 	rm -f $(CACHE_PATH)
 
 clean:
 	@echo "Cleaning artifacts..."
-	rm -rf build dist __pycache__ *.spec *.png report.* mol_*.png
+	rm -rf build dist __pycache__ *.spec *.html *.pdf *.png report.* mol_*.png

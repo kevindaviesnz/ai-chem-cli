@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🧪 Starting Chemoselectivity Stress Test Suite (v1.8.3 Baseline)"
+echo "🧪 Starting Chemoselectivity Stress Test Suite (v1.8.5 Gatekeeper)"
 echo "================================================="
 echo ""
 echo "--- Test 1: Procaine (Amine + Ester) ---"
