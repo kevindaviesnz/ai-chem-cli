@@ -95,24 +95,17 @@ def display_result(text, verbose, print_output):
         print("Summary of Pathways Identified:")
         
         count = 0
-        valid_prefixes = ["RELATION:", "CONVERGENT:", "REACTION:", "STEP:"]
-        
         for line in lines:
             clean_line = line.strip()
-            prefix = next((p for p in valid_prefixes if clean_line.startswith(p) or p in clean_line), None)
+            if not clean_line: continue
             
-            if prefix:
-                parts = clean_line.split(prefix, 1)
-                if len(parts) > 1:
-                    print(f"  • {parts[1].strip()}")
+            # If it has a reaction arrow, it's a pathway. Strip bullets and prefixes.
+            if "->" in clean_line:
+                clean_reaction = re.sub(r'^[\d\.\-\*]*\s*(RELATION:|CONVERGENT:|REACTION:|STEP:)?\s*', '', clean_line, flags=re.IGNORECASE).strip()
+                if clean_reaction:
+                    print(f"  • {clean_reaction}")
                     count += 1
                         
-        if count == 0:
-            for line in lines:
-                if "->" in line and "[" in line:
-                     print(f"  • {line.strip()}")
-                     count += 1
-            
         if count == 0:
             print("  (See full report for detailed synthesis narrative)")
         print("=" * 60 + "\n")
@@ -138,14 +131,20 @@ def validate_pathway_logic(raw_output: str, target: str, target_smiles: str, mod
     errors = []
     
     for pathway in pathways:
-        reaction_core = pathway.split("using")[0] if "using" in pathway else pathway
+        # Strip leading numbers or bullets (e.g., "1. RELATION:", "- RELATION:")
+        clean_pathway = re.sub(r'^[\d\.\-\*]*\s*', '', pathway).strip()
+        
+        reaction_core = clean_pathway.split("using")[0] if "using" in clean_pathway else clean_pathway
+        reaction_core = reaction_core.replace("RELATION:", "").strip()
         
         # 1. RDKit Syntax Check
-        tokens = re.split(r'\s+|\+|\->', reaction_core.replace("RELATION:", ""))
+        tokens = re.split(r'\s+|\+|\->', reaction_core)
         rdkit_pass = True
         for token in tokens:
             clean_smi = token.strip('[]`*:,.')
-            if not clean_smi or (clean_smi.isalpha() and len(clean_smi) > 2): continue
+            # Ignore empty strings, plain text words, or standalone digits
+            if not clean_smi or (clean_smi.isalpha() and len(clean_smi) > 2) or clean_smi.isdigit(): 
+                continue
                 
             if Chem.MolFromSmiles(clean_smi) is None:
                 if any(c in clean_smi for c in "=@#()[]1234567890+-"):
@@ -190,7 +189,7 @@ def validate_pathway_logic(raw_output: str, target: str, target_smiles: str, mod
         # 3. Adversarial Chemoselectivity Check
         critic_prompt = (
             f"You are an adversarial Chemoselectivity Validator.\n"
-            f"Evaluate this proposed reaction: {pathway}\n"
+            f"Evaluate this proposed reaction: {clean_pathway}\n"
             f"Target molecule: {target} (SMILES: {target_smiles})\n"
             f"Check for:\n"
             f"1. Cross-reactivity & Incompatibilities: e.g., using strong acids (like refluxing H2SO4) on free aromatic amines risks sulfonation.\n"
@@ -202,7 +201,7 @@ def validate_pathway_logic(raw_output: str, target: str, target_smiles: str, mod
         critic_res = _call_llm(critic_prompt, model, nocache=nocache, print_output=False, timeout=30, suppress_errors=True)
         
         if critic_res and critic_res.upper().startswith("PASS"):
-            valid_pathways.append(pathway)
+            valid_pathways.append(clean_pathway)
         else:
             reason = critic_res if critic_res else "Critic Timeout/Unknown Error"
             err_msg = reason.replace('FAIL:', '').strip()
@@ -215,7 +214,7 @@ def predict_reaction(reactants: list, model: str, **kwargs) -> str:
     prompt = (
         f"Act as an expert Industrial Chemist. Predict the major product of the reaction between: {', '.join(reactants)}. "
         f"CRITICAL RULES: \n"
-        f"1. You MUST use exact, correct SMILES strings for all reactants and products. Do not hallucinate chain lengths or ring substituents. \n"
+        f"1. You MUST use exact, correct canonical SMILES strings for all reactants and products. Do not hallucinate chain lengths or ring substituents. \n"
         f"2. Format your answer EXACTLY as: RELATION: [Reactant SMILES] -> [Product SMILES] using [Conditions]. "
     )
     return _call_llm(prompt, model, suppress_errors=False, **kwargs)
@@ -227,6 +226,8 @@ def propose_pathway(target: str, model: str, depth: int, target_smiles: str = ""
         f"1. Global Chemoselectivity: Avoid harsh conditions (like refluxing strong acids on aromatic amines) that destroy sensitive groups.\n"
         f"2. Isomeric Accuracy & Diastereoselectivity: You MUST include stereochemical encoding (@/@@). The reaction MUST be stereoselective enough to realistically yield the requested diastereomer in industry.\n"
         f"3. Strict Target Match: Your product SMILES must mathematically match the target SMILES.\n"
+        f"4. Format & Syntax: NEVER use empirical or structural formulas (e.g., CH3OH, H2, HOCCN). You MUST use strict canonical SMILES with implicit hydrogens (e.g., CO, [HH], OCCN).\n"
+        f"5. DO NOT use numbered lists or bullet points. Output ONLY the raw RELATION strings.\n"
         f"Format EXACTLY as: RELATION: [Precursor SMILES] + [Precursor SMILES] -> [Target SMILES] using [Reagents]. DO NOT add reaction names before the SMILES."
     )
     
@@ -256,5 +257,8 @@ def propose_pathway(target: str, model: str, depth: int, target_smiles: str = ""
             current_prompt = base_prompt + "\n\nYOUR PREVIOUS ATTEMPT FAILED. The Gatekeeper rejected it for these reasons:\n" + "\n".join(f"- {e}" for e in set(errors)) + "\n\nFix the SMILES syntax, target identity, and stereoselective/chemoselective errors. Output ONLY the corrected RELATION lines."
             
     if should_print:
-        print(f"\n\033[91m[!] Synthesis Error: AI failed to generate valid pathways after self-correction.\033[0m")
+        # Graceful fallback for complex targets
+        print(f"\n\033[93m[!] No valid pathway could be auto-generated for this target.\033[0m")
+        print(f"\033[93m    This molecule may require expert manual retrosynthetic planning.\033[0m")
+        print(f"\033[93m    Consider decomposing the target into simpler fragments manually using 'ring open' or 'substitute' commands.\033[0m")
     return ""
