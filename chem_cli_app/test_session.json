@@ -1,0 +1,36 @@
+{
+    "working_smiles": "NCCC(=O)O",
+    "target_smiles": "CC(C)(C)OC(=O)NCCC(=O)O",
+    "history": [
+        {
+            "command": "load CC(C)(C)OC(=O)NCCC(=O)O",
+            "smiles_before": "",
+            "smiles_after": "CC(C)(C)OC(=O)NCCC(=O)O",
+            "gatekeeper_log": [
+                "Resolved to CC(C)(C)OC(=O)NCCC(=O)O"
+            ],
+            "quantities_snapshot": {},
+            "timestamp": "2026-03-08T14:40:26.150573"
+        },
+        {
+            "command": "deprotect",
+            "smiles_before": "CC(C)(C)OC(=O)NCCC(=O)O",
+            "smiles_after": "NCCC(=O)O",
+            "gatekeeper_log": [
+                "AI Raw Output: RELATION: CC(C)(C)OC(=O)NCCC(=O)O -> NCCC(=O)O using Trifluoroacetic acid (TFA)",
+                "Gatekeeper validated product: NCCC(=O)O"
+            ],
+            "quantities_snapshot": {},
+            "timestamp": "2026-03-08T14:40:46.895552"
+        }
+    ],
+    "redo_stack": [],
+    "quantities": {},
+    "conditions": {
+        "temperature": null,
+        "pH": null,
+        "pressure": null,
+        "solvent": null
+    },
+    "session_file": "test_session.json"
+}

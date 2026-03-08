@@ -46,7 +46,7 @@ def _set_cache(key: str, value: str):
     except Exception:
         pass
 
-def _call_llm(prompt: str, model: str, nocache: bool = False, verbose: bool = False, print_output: bool = True, timeout: int = 45, suppress_errors: bool = False) -> str:
+def _call_llm(prompt: str, model: str, nocache: bool = False, verbose: bool = False, print_output: bool = True, timeout: int = 45, suppress_errors: bool = False, return_error: bool = False) -> str:
     cache_key = hashlib.md5(f"{model}_{prompt}".encode('utf-8')).hexdigest()
     
     if not nocache:
@@ -80,6 +80,10 @@ def _call_llm(prompt: str, model: str, nocache: bool = False, verbose: bool = Fa
         raw_err = str(e).strip()
         err_msg = raw_err.split('\n')[0] if raw_err else repr(e)
         
+        # New logic: Pass the exact error back to the REPL if requested
+        if return_error:
+            return f"API_ERROR: {err_msg}"
+            
         if not suppress_errors:
             print(f"\n\033[91m[!] API ERROR:\033[0m {err_msg}")
             sys.exit(1)
@@ -131,7 +135,7 @@ def validate_pathway_logic(raw_output: str, target: str, target_smiles: str, mod
     errors = []
     
     for pathway in pathways:
-        # Strip leading numbers or bullets (e.g., "1. RELATION:", "- RELATION:")
+        # Strip leading numbers or bullets
         clean_pathway = re.sub(r'^[\d\.\-\*]*\s*', '', pathway).strip()
         
         reaction_core = clean_pathway.split("using")[0] if "using" in clean_pathway else clean_pathway
@@ -142,7 +146,6 @@ def validate_pathway_logic(raw_output: str, target: str, target_smiles: str, mod
         rdkit_pass = True
         for token in tokens:
             clean_smi = token.strip('[]`*:,.')
-            # Ignore empty strings, plain text words, or standalone digits
             if not clean_smi or (clean_smi.isalpha() and len(clean_smi) > 2) or clean_smi.isdigit(): 
                 continue
                 
@@ -192,8 +195,8 @@ def validate_pathway_logic(raw_output: str, target: str, target_smiles: str, mod
             f"Evaluate this proposed reaction: {clean_pathway}\n"
             f"Target molecule: {target} (SMILES: {target_smiles})\n"
             f"Check for:\n"
-            f"1. Cross-reactivity & Incompatibilities: e.g., using strong acids (like refluxing H2SO4) on free aromatic amines risks sulfonation.\n"
-            f"2. Stereoselective Feasibility: If the target has specific stereocenters, ensure the proposed reagents can actually achieve that specific diastereomer. (e.g., heterogeneous Ru/C hydrogenation of a pyridine ring cannot selectively yield a single threo/erythro diastereomer). If it produces a mixture when a pure isomer is requested, FAIL IT.\n"
+            f"1. Cross-reactivity & Incompatibilities.\n"
+            f"2. Stereoselective Feasibility.\n"
             f"3. Hallucinated mass balance or functional group interconversions.\n"
             f"Reply ONLY with 'PASS' if strictly valid, or 'FAIL: [Reason]' if invalid."
         )
@@ -223,12 +226,12 @@ def propose_pathway(target: str, model: str, depth: int, target_smiles: str = ""
     base_prompt = (
         f"Act as an expert Industrial Organic Chemist. Propose a branching retrosynthetic tree for: {target} (SMILES: {target_smiles}). Depth: {depth}.\n"
         f"CRITICAL CHEMISTRY RULES:\n"
-        f"1. Global Chemoselectivity: Avoid harsh conditions (like refluxing strong acids on aromatic amines) that destroy sensitive groups.\n"
-        f"2. Isomeric Accuracy & Diastereoselectivity: You MUST include stereochemical encoding (@/@@). The reaction MUST be stereoselective enough to realistically yield the requested diastereomer in industry.\n"
-        f"3. Strict Target Match: Your product SMILES must mathematically match the target SMILES.\n"
-        f"4. Format & Syntax: NEVER use empirical or structural formulas (e.g., CH3OH, H2, HOCCN). You MUST use strict canonical SMILES with implicit hydrogens (e.g., CO, [HH], OCCN).\n"
+        f"1. Global Chemoselectivity.\n"
+        f"2. Isomeric Accuracy & Diastereoselectivity.\n"
+        f"3. Strict Target Match.\n"
+        f"4. Format & Syntax: NEVER use empirical or structural formulas. You MUST use strict canonical SMILES.\n"
         f"5. DO NOT use numbered lists or bullet points. Output ONLY the raw RELATION strings.\n"
-        f"Format EXACTLY as: RELATION: [Precursor SMILES] + [Precursor SMILES] -> [Target SMILES] using [Reagents]. DO NOT add reaction names before the SMILES."
+        f"Format EXACTLY as: RELATION: [Precursor SMILES] + [Precursor SMILES] -> [Target SMILES] using [Reagents]."
     )
     
     should_print = kwargs.pop('print_output', True)
@@ -257,8 +260,59 @@ def propose_pathway(target: str, model: str, depth: int, target_smiles: str = ""
             current_prompt = base_prompt + "\n\nYOUR PREVIOUS ATTEMPT FAILED. The Gatekeeper rejected it for these reasons:\n" + "\n".join(f"- {e}" for e in set(errors)) + "\n\nFix the SMILES syntax, target identity, and stereoselective/chemoselective errors. Output ONLY the corrected RELATION lines."
             
     if should_print:
-        # Graceful fallback for complex targets
         print(f"\n\033[93m[!] No valid pathway could be auto-generated for this target.\033[0m")
         print(f"\033[93m    This molecule may require expert manual retrosynthetic planning.\033[0m")
         print(f"\033[93m    Consider decomposing the target into simpler fragments manually using 'ring open' or 'substitute' commands.\033[0m")
     return ""
+
+def predict_reaction_interactive(reactants: list, model: str, nocache: bool = False, **kwargs) -> tuple:
+    """
+    Interactive wrapper for forward reaction simulation.
+    Returns: (success: bool, product_smiles: str, logs: list)
+    """
+    logs = []
+    prompt = (
+        f"Act as an expert Industrial Chemist. Predict the major organic product of the reaction between these SMILES: {', '.join(reactants)}.\n"
+        f"CRITICAL RULES:\n"
+        f"1. You MUST use exact, correct canonical SMILES strings for the product.\n"
+        f"2. Focus only on the major organic product. Ignore inorganic byproducts.\n"
+        f"3. Format your answer EXACTLY on one line as: RELATION: [Reactants] -> [Product SMILES] using [Conditions]."
+    )
+    
+    # Call the LLM with return_error=True to surface 429s and API issues
+    raw_result = _call_llm(prompt, model, nocache=nocache, print_output=False, suppress_errors=True, return_error=True, **kwargs)
+    
+    # Catch bubbling API errors
+    if raw_result and raw_result.startswith("API_ERROR:"):
+        return False, "", [f"API Error: {raw_result.replace('API_ERROR: ', '').strip()}"]
+
+    if not raw_result:
+        return False, "", ["AI failed to return a response or timed out."]
+        
+    logs.append(f"AI Raw Output: {raw_result}")
+    
+    try:
+        product_smiles = None
+        for line in raw_result.split('\n'):
+            if "->" in line:
+                right_side = line.split("->")[1].strip()
+                product_raw = right_side.split("using")[0].strip()
+                product_smiles = product_raw.split()[0].strip('[]`*:,.')
+                break
+                
+        if not product_smiles:
+            logs.append("Gatekeeper Error: No reaction arrow '->' found in AI output.")
+            return False, "", logs
+            
+        mol = Chem.MolFromSmiles(product_smiles)
+        if mol:
+            canonical_product = Chem.MolToSmiles(mol, isomericSmiles=True)
+            logs.append(f"Gatekeeper validated product: {canonical_product}")
+            return True, canonical_product, logs
+        else:
+            logs.append(f"Gatekeeper Error: AI generated invalid SMILES structure: '{product_smiles}'")
+            return False, "", logs
+            
+    except Exception as e:
+        logs.append(f"Gatekeeper Parsing Error: {str(e)}")
+        return False, "", logs
